@@ -1,0 +1,317 @@
+/* body {
+  margin: 0;
+  background-color: #0e0e0e;
+  color: white;
+  font-family: 'Segoe UI', sans-serif;
+}
+
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 2rem 1rem;
+  min-height: 100vh;
+  box-sizing: border-box;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 1rem;
+
+  padding: 1rem 2rem;
+  border-radius: 1rem;
+  color: white;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+}
+
+.logo {
+  font-size: 2rem;
+}
+
+h1 {
+  font-size: 2rem;
+  font-weight: bold;
+  margin: 0;
+}
+
+.chat {
+  width: 100%;
+  max-width: 800px;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding-bottom: 6rem;
+}
+
+.bubble {
+  display: flex;
+  gap: 0.6rem;
+  font-size: 1rem;
+  line-height: 1.4;
+  max-width: 70%;
+  padding: 1rem;
+  border-radius: 1rem;
+  text-align: left;
+  white-space: pre-wrap;
+  word-break: break-word;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+
+.linkified {
+  color: #fcb045;
+  text-decoration: underline;
+  word-break: break-word;
+}
+
+.bubble.left {
+  align-self: flex-start;
+  background: #262626;
+  color: white;
+  border-radius: 1rem 1rem 1rem 0;
+}
+
+.bubble.right {
+  align-self: flex-end;
+  background: linear-gradient(135deg, #915311, #e64a12, #e30a2a);
+  color: white;
+  border-radius: 1rem 1rem 0 1rem;
+}
+
+.emoji {
+  font-size: 1.2rem;
+}
+
+.input-area {
+  position: fixed;
+  bottom: 20px;
+  width: 100%;
+  max-width: 800px;
+  display: flex;
+  gap: 0.5rem;
+  background: #1e1e1e;
+  padding: 0.8rem 1.2rem;
+  border-radius: 999px;
+  border: 2px solid #dc2743;
+  box-shadow: 0 0 10px rgba(220, 39, 67, 0.4);
+}
+
+.input-area input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: white;
+  font-size: 1rem;
+}
+
+.input-area button {
+  background: linear-gradient(135deg, #fd1d1d, #fcb045);
+  border: none;
+  color: white;
+  font-size: 1.3rem;
+  padding: 0.3rem 0.8rem;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.input-area button:hover {
+  transform: scale(1.1);
+} */
+:root {
+  --bg-dark: #1F2A40;
+  --bg-deep: #131826;
+  --user-gradient-start: #108695;
+  --user-gradient-end: #2563EB;
+  --bot-color: #51628A;
+  --glass-blur: blur(20px);
+}
+
+body {
+  margin: 0;
+  font-family: 'Segoe UI', sans-serif;
+  background: var(--bg-deep);
+  color: white;
+}
+
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+header {
+  padding: 1rem 2rem;
+  backdrop-filter: var(--glass-blur);
+  background-color: rgba(31, 42, 64, 0.6);
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.logo {
+  font-size: 1.8rem;
+}
+
+header h1 {
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+.chat {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.bubble {
+  padding: 0.8rem 1rem;
+  border-radius: 1rem;
+  max-width: 80%;
+  line-height: 1.5;
+  word-break: break-word;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  display: flex;
+  gap: 0.5rem;
+  text-align: left;
+  
+  align-items: flex-start;
+  white-space: pre-wrap;
+}
+
+.left.bot {
+  align-self: flex-start;
+  
+  color: white;
+   background-color: var(--bot-color);
+}
+
+.right.user {
+  align-self: flex-end;
+ background: linear-gradient(135deg, var(--user-gradient-start), var(--user-gradient-end));
+  color: white;
+}
+
+.input-area {
+  display: flex;
+  padding: 1rem 2rem;
+  gap: 1rem;
+  align-items: center;
+  backdrop-filter: var(--glass-blur);
+  background-color: rgba(31, 42, 64, 0.6);
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.input-area input {
+  flex: 1;
+  padding: 0.8rem 1rem;
+  border-radius: 0.8rem;
+  border: none;
+  background: rgba(255, 255, 255, 0.05);
+  color: white;
+  outline: none;
+}
+
+.input-area button {
+  padding: 0.7rem 1rem;
+  border: none;
+  border-radius: 0.8rem;
+  font-size: 1rem;
+  background: linear-gradient(135deg, var(--user-gradient-start), var(--user-gradient-end));
+  color: white;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+.input-area button:hover {
+  opacity: 0.9;
+}
+
+.linkified {
+  text-decoration: underline;
+  color: #051191;
+}
+
+.emoji {
+  flex-shrink: 0;
+  font-size: 1.2rem;
+}
+.summary-selector {
+  margin-top: 8px;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.summary-selector button {
+  padding: 4px 8px;
+  border-radius: 5px;
+  background-color: #444;
+  color: white;
+  border: none;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.summary-selector button.active {
+  background-color: #6ec1e4;
+}
+.carousel-buttons {
+  margin-top: 10px;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.carousel-btn {
+  background-color: #eee;
+  border: none;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+.carousel-btn.active {
+  background-color: #007bff;
+  color: white;
+}
+
+.message-suggestions {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.5rem 0 0.5rem 2.7rem;
+  flex-wrap: wrap;
+  max-width: 80%;
+}
+
+.suggestions {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0 2rem 0.5rem;
+  flex-wrap: wrap;
+}
+
+.suggestion-chip {
+  padding: 0.6rem 1rem;
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.08);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.2s;
+}
+
+.suggestion-chip:hover {
+  background: rgba(255, 255, 255, 0.15);
+  transform: translateY(-2px);
+}
