@@ -11,11 +11,11 @@ const Chatbot = () => {
   const [messages, setMessages] = useState([
     {
       sender: "bot",
-      text: "Hi there! I am Reserach Assistant. How Can I help you today?.",
+      text: "Hi there! I am Stock Story Writer. How Can I help you today?.",
       suggestions: [
-        "create a stock story for TCS  covering the period from 2025-09-01 to 2025-12-31 ",
-        "Amazon, 2025-09-01 to 2025-12-31",
-        "Infosys, 2025-10-01 to 2026-01-31"
+        "create a stock story for WIPRO covering the period from 2025-10-01 to 2026-01-31 ",
+        "Infosys, 2025-09-01 to 2025-12-31",
+        "Reliance, 2025-10-01 to 2026-01-31"
       ]
     },
   ]);
@@ -131,7 +131,7 @@ const Chatbot = () => {
   }, [summaries]);
 
   const handleSend = async (message = input) => {
-    if (!message.trim()) return;
+    if (!message || typeof message !== 'string' || !message.trim()) return;
 
     const userMsg = { sender: "user", text: message };
     setMessages((prev) => [...prev, userMsg]);
@@ -180,7 +180,7 @@ const Chatbot = () => {
       <ToastContainer />
       <header>
         <span className="logo">📈</span>
-        <h1>Research Assistant</h1>
+        <h1>Stock Story Writer</h1>
       </header>
 
       <div className="chat" ref={chatRef}>

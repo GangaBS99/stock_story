@@ -55,15 +55,16 @@ def generate_suggestions(bot_text: str) -> List[str]:
 
     if "weeks" in text or "specify" in text:
         return [
-            "2025-08-01 to 2025-11-30",
-            "Last quarter",
-            "Previous 3 months"
+            "add following week",
+            "remove following week",
+            "yes proceed"
         ]
 
-    if "proceed" in text or "no data" in text or "not available" in text:
+    if "proceed" in text or "continue" in text or "no data" in text or "not available" in text:
         return [
             "yes, proceed",
             "no, cancel",
+            "try a different company"
           
         ]
 
@@ -71,7 +72,7 @@ def generate_suggestions(bot_text: str) -> List[str]:
         return [
             "Add following week",
             "Remove following week",
-            "Show key risks"
+            "yes proceed"
         ]
 
     return []

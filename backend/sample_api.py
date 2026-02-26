@@ -89,7 +89,7 @@ Use `find_weeks_with_significant_change` to find >5% changes.
 5️⃣ Build date ranges:  
 Use `build_date_ranges_from_weeks` (format: MM/DD/YYYY).
 
-6️⃣ Present the weeks to the user:  
+6️⃣ After finding significant weeks, always display them in a formatted list showing the date and percentage then:  
 Say: **“These weeks had significant movements. Would you like to analyze the related news or add more weeks?”**
 
 
@@ -107,11 +107,21 @@ Say: **“These weeks had significant movements. Would you like to analyze the r
 • Then call `summarize_date_ranges_sequentially` with the updated list of date ranges.
 • This tool calls `gather_articles_for_summarization` **one-by-one** for each date range, enabling progressive streaming and storing summaries in order.
 
-8️⃣ After generating all summaries(with URLs used) show only this response:  
-Ask: “Now I can generate a complete story using these summaries. You can also remove any summary if it seems off. Ready for the full narrative?”
+8️⃣ After generating all summaries show ONLY this exact message (nothing else):  
+"Now I can generate a complete story using these summaries. You can also remove any summary if it seems off. Ready for the full narrative?"
+
+🚫 DO NOT:
+- List or describe the summaries
+- Add any introductory text like "The news articles for the weeks..."
+- Include placeholder text like "[insert summary details here]"
+- Show any other commentary
+
 
 9️⃣ If the user agrees:  
-Call `generate_stock_story`. Return ONLY the tool output. Do not add any text before or after.
+Use `generate_stock_story` to generate a complete narrative. After calling the tool, display ONLY the exact output returned by the tool - nothing else. Do not add any commentary, introduction, or explanation. Just show the story text directly.
+
+💬 After Story Generation:
+Once the stock story is complete, you can answer follow-up stock-related questions from the user. For any stock analysis questions, provide professional insights based on your financial expertise.
 
 🚫 IMPORTANT:
 If the user says anything **other than stock related questions**, respond with:
@@ -140,7 +150,6 @@ async def get_tickr_symbol(ctx:RunContext, companyName:str):
     Args:
         ctx: the current context
         companyName: the company name for which Tickr has to be given
-
     
     '''
     tickrAgent= Agent(
@@ -193,8 +202,36 @@ def get_weekly_stock_data(ctx: RunContext, ticker: str, start_date: str, end_dat
         WeeklyStockDataResult: Model containing weekly data and status message.
     """
     try:
-        # Download daily stock data
-        df = yf.download(ticker, start=start_date, end=end_date, auto_adjust=False, progress=False)
+        # Validate date order
+        start_dt = pd.to_datetime(start_date)
+        end_dt = pd.to_datetime(end_date)
+        
+        if start_dt > end_dt:
+            return WeeklyStockDataResult(
+                ticker=ticker,
+                start_date=start_date,
+                end_date=end_date,
+                weekly_data=[],
+                success=False,
+                message=f"❌ Invalid date range: start_date ({start_date}) is after end_date ({end_date})"
+            )
+        
+        # Download daily stock data with retry
+        import time
+        max_retries = 3
+        df = None
+        for attempt in range(max_retries):
+            try:
+                df = yf.download(ticker, start=start_date, end=end_date, auto_adjust=False, progress=False)
+                break
+            except Exception as e:
+                if "Rate limit" in str(e) or "YFRateLimitError" in str(type(e).__name__):
+                    if attempt < max_retries - 1:
+                        wait_time = 5 * (2 ** attempt)
+                        print(f"Rate limit hit, waiting {wait_time}s before retry {attempt + 2}/{max_retries}")
+                        time.sleep(wait_time)
+                        continue
+                raise
 
         if df.empty:
             return WeeklyStockDataResult(
@@ -254,7 +291,7 @@ class WeeklyChangeResult(BaseModel):
 @agent.tool
 def find_weeks_with_significant_change(ctx: RunContext[WeeklyChangeResult], weekly_data: list[dict]) -> WeeklyChangeResult:
     """
-    Given weekly stock data (list of dicts), find weeks with a significant price change (>5% increase or decrease).
+    Given weekly stock data (list of dicts), find weeks with a significant price change (>2% increase or decrease).
     """
     df = pd.DataFrame(weekly_data)
 
@@ -264,8 +301,8 @@ def find_weeks_with_significant_change(ctx: RunContext[WeeklyChangeResult], week
     # Calculate % change
     df['Pct_Change'] = df['Close'].pct_change() * 100
 
-    # Identify weeks with >5% increase or decrease
-    significant_weeks = df[abs(df['Pct_Change']) > 5].copy()
+    # Identify weeks with >2% increase or decrease
+    significant_weeks = df[abs(df['Pct_Change']) > 2].copy()
 
     # Convert to list of dicts
     weeks_list = significant_weeks[['Date', 'Open', 'High', 'Low', 'Close', 'Volume', 'Pct_Change']].to_dict(orient='records')
@@ -273,6 +310,7 @@ def find_weeks_with_significant_change(ctx: RunContext[WeeklyChangeResult], week
     output_tokens = count_tokens(str(weeks_list))
     add_tool_tokens(input_tokens, output_tokens)
     print(f'tokens used for find_weeks_with_significant_change: {input_tokens } ---- Output: {output_tokens}   ')
+    print(f'Found significant weeks: {weeks_list}')
 
     return WeeklyChangeResult(weeks=weeks_list)
 
@@ -330,7 +368,7 @@ class ArticlesForPeakWeeksResult(BaseModel):
 def find_articles_for_peak_weeks(ctx: RunContext, company: str, date_ranges: Dict[str, str]) -> ArticlesForPeakWeeksResult:
     
     """
-    For the given company and peak weeks (date ranges), find articles from WSJ, Reuters, and FT
+    For the given company and peak weeks (date ranges), find articles from WSJ, Reuters, FT, EconomicTimes, and TimesOfIndia
     using both SerpAPI and OpenAI web search. Filters out any article not belonging to those domains.
     """
     api_key = os.getenv("SERP_API_KEY")
@@ -339,7 +377,9 @@ def find_articles_for_peak_weeks(ctx: RunContext, company: str, date_ranges: Dic
     allowed_domains = {
         "wsj.com": "wsj.com",
         "reuters.com": "reuters.com",
-        "ft.com": "ft.com"
+        "ft.com": "ft.com",
+        "economictimes.indiatimes.com": "economictimes.indiatimes.com",
+        "timesofindia.indiatimes.com": "timesofindia.indiatimes.com"
     }
 
     sites = list(allowed_domains.keys())
@@ -381,31 +421,31 @@ def find_articles_for_peak_weeks(ctx: RunContext, company: str, date_ranges: Dic
                     if title and url and is_valid_source(url, site):
                         combined_articles.append(ArticleResult(title=title, url=url))
 
-            # --- OpenAI Web Search ---
-            try:
-                web_client = OpenAI(api_key=openai_key)
-                openai_query = f"{company} site:{site} in the week ending {end_date}"
-                openai_response = web_client.responses.create(
-                    model="gpt-4.1",
-                    tools=[{
-                        "type": "web_search_preview",
-                        "search_context_size": "high"
-                    }],
-                    input=openai_query
-                )
+            # # --- OpenAI Web Search ---
+            # try:
+            #     web_client = OpenAI(api_key=openai_key)
+            #     openai_query = f"{company} site:{site} in the week ending {end_date}"
+            #     openai_response = web_client.responses.create(
+            #         model="gpt-4.1",
+            #         tools=[{
+            #             "type": "web_search_preview",
+            #             "search_context_size": "high"
+            #         }],
+            #         input=openai_query
+            #     )
 
-                for item in openai_response.output:
-                    if hasattr(item, 'role') and item.role == "assistant":
-                        for block in item.content:
-                            if block.type == "output_text":
-                                if hasattr(block, "annotations"):
-                                    for annotation in block.annotations:
-                                        if annotation.type == "url_citation" and is_valid_source(annotation.url, site):
-                                            combined_articles.append(
-                                                ArticleResult(title=annotation.title, url=annotation.url)
-                                            )
-            except Exception as e:
-                print(f"OpenAI Web search failed: {e}")
+            #     for item in openai_response.output:
+            #         if hasattr(item, 'role') and item.role == "assistant":
+            #             for block in item.content:
+            #                 if block.type == "output_text":
+            #                     if hasattr(block, "annotations"):
+            #                         for annotation in block.annotations:
+            #                             if annotation.type == "url_citation" and is_valid_source(annotation.url, site):
+            #                                 combined_articles.append(
+            #                                     ArticleResult(title=annotation.title, url=annotation.url)
+            #                                 )
+            # except Exception as e:
+            #     print(f"OpenAI Web search failed: {e}")
 
             # --- Remove duplicates by URL ---
             seen_urls = set()
@@ -432,7 +472,136 @@ def find_articles_for_peak_weeks(ctx: RunContext, company: str, date_ranges: Dic
         company=company,
         articles=articles_result
     )
-# ========== 2️⃣ WSJ Article Scraper Tool ==========
+
+# ========== 2️⃣ Economic Times Article Scraper Tool ==========
+class ETScrapeResult(BaseModel):
+    url: str
+    title: str
+    content: str
+    success: bool
+    message: str
+
+@agent.tool
+async def scrape_et_article(ctx: RunContext, url: str, title: str) -> ETScrapeResult:
+    """
+    Scrapes the full article content from a Economic Times URL using Selenium and saved cookies.
+     Args:
+        ctx: the current context
+        url: the URL of the article to scrape
+        title: the title of the article to scrape
+    Returns:
+        ETScrapeResult: A model containing the scraped content or an error message
+       
+    """
+    cookie_file_path = r"E:\Python\stock_story_integration\economictimes.indiatimes.com_json_1770573419566.json"
+    with open(cookie_file_path, "r", encoding="utf-8") as f:
+        raw_cookies = json.load(f)
+
+    cookies = []
+    for cookie in raw_cookies:
+        filtered_cookie = {
+            "name": cookie["name"],
+            "value": cookie["value"],
+            "domain": cookie.get("domain", ".wsj.com"),
+            "path": cookie.get("path", "/"),
+            "secure": cookie.get("secure", False),
+            "httpOnly": cookie.get("httpOnly", False),
+        }
+        if "expirationDate" in cookie:
+            filtered_cookie["expiry"] = int(cookie["expirationDate"])
+        cookies.append(filtered_cookie)
+
+    USER_AGENT = "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Mobile Safari/537.36"
+    options = uc.ChromeOptions()
+    options.add_argument(f"user-agent={USER_AGENT}")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+   
+
+    driver = uc.Chrome(driver_executable_path=r"C:\chromedriver-win64\chromedriver.exe", options=options)
+
+    def accept_cookies(driver, timeout=5):
+        try:
+            WebDriverWait(driver, timeout).until(
+                EC.element_to_be_clickable((By.XPATH, "//button[contains(., 'Accept') or contains(., 'agree')]"))
+            ).click()
+        except Exception:
+            pass
+
+    def inject_cookies(driver, cookies, base_url="https://economictimes.indiatimes.com/"):
+        driver.get(base_url)
+        time.sleep(2)
+        for cookie in cookies:
+            try:
+                driver.add_cookie(cookie)
+            except Exception as e:
+                print(f" Failed to add cookie {cookie['name']}: {e}")
+
+    try:
+        inject_cookies(driver, cookies)
+        driver.get(url)
+        time.sleep(random.uniform(2.5, 4))
+        accept_cookies(driver)
+
+        soup = BeautifulSoup(driver.page_source, "lxml")
+
+        # Economic Times uses different selectors
+        paragraphs = []
+        
+        # Try multiple selectors for ET articles
+        article_body = soup.find('div', class_='artText') or soup.find('div', {'class': 'Normal'})
+        if article_body:
+            for p in article_body.find_all('p'):
+                text = p.get_text(strip=True)
+                if text:
+                    paragraphs.append(text)
+        
+        # Fallback: get all paragraphs if specific container not found
+        if not paragraphs:
+            for p in soup.find_all('p'):
+                text = p.get_text(strip=True)
+                if text and len(text) > 50:  # Filter out short snippets
+                    paragraphs.append(text)
+
+        full_text = "\n".join(paragraphs)
+
+        driver.quit()
+        print(f"Success: {full_text[:100]}...")  # Print first 100 chars for debugging
+        input_tokens = count_tokens(url)
+        output_tokens = count_tokens(full_text)
+        add_tool_tokens(input_tokens, output_tokens)
+
+        if full_text.strip():
+            return ETScrapeResult(
+                url=url,
+                title=title,
+                content=full_text,
+                success=True,
+                message="Article successfully scraped!"
+            )
+        else:
+            return ETScrapeResult(
+                url=url,
+                title=title,
+                content="",
+                success=False,
+                message="No visible text found in the article."
+            )
+
+    except Exception as e:
+        driver.quit()
+        return ETScrapeResult(
+            url=url,
+            title=title,
+            content="",
+            success=False,
+            message=f"Error occurred: {str(e)}"
+        )
+
+
+
+# ========== 3️⃣ WSJ Article Scraper Tool ==========
 class WSJScrapeResult(BaseModel):
     url: str
     title: str
@@ -674,7 +843,7 @@ async def scrape_ft_article(ctx: RunContext, url: str, title: str) -> FTScrapeRe
             success=False,
             message=f"Error occurred: {str(e)}"
         )
-# ========== 2️⃣ Reuters Article Scraper Tool ==========
+# ========== 4️⃣ Reuters Article Scraper Tool ==========
 class ArticleInput(BaseModel):
     url: str
     title: str
@@ -829,6 +998,135 @@ async def scrape_reuters_articles(ctx: RunContext, articles_input: List[ArticleI
             message=f"Error occurred: {str(e)}",
             success=False
         )
+
+# ========== 5️⃣ Times Of India Article Scraper Tool ==========
+class TOIScrapeResult(BaseModel):
+    url: str
+    title: str
+    content: str
+    success: bool
+    message: str
+
+@agent.tool
+async def scrape_toi_article(ctx: RunContext, url: str, title: str) -> TOIScrapeResult:
+    """
+    Scrapes the full article content from a Times Of India URL using Selenium and saved cookies.
+     Args:
+        ctx: the current context
+        url: the URL of the article to scrape
+        title: the title of the article to scrape
+    Returns:
+        TOIScrapeResult: A model containing the scraped content or an error message
+       
+    """
+    cookie_file_path = r"E:\Python\stock_story_integration\timesofindia.indiatimes.com_json_1770574475288.json"
+    with open(cookie_file_path, "r", encoding="utf-8") as f:
+        raw_cookies = json.load(f)
+
+    cookies = []
+    for cookie in raw_cookies:
+        filtered_cookie = {
+            "name": cookie["name"],
+            "value": cookie["value"],
+            "domain": cookie.get("domain", ".wsj.com"),
+            "path": cookie.get("path", "/"),
+            "secure": cookie.get("secure", False),
+            "httpOnly": cookie.get("httpOnly", False),
+        }
+        if "expirationDate" in cookie:
+            filtered_cookie["expiry"] = int(cookie["expirationDate"])
+        cookies.append(filtered_cookie)
+
+    USER_AGENT = "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Mobile Safari/537.36"
+    options = uc.ChromeOptions()
+    options.add_argument(f"user-agent={USER_AGENT}")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+   
+
+    driver = uc.Chrome(driver_executable_path=r"C:\chromedriver-win64\chromedriver.exe", options=options)
+
+    def accept_cookies(driver, timeout=5):
+        try:
+            WebDriverWait(driver, timeout).until(
+                EC.element_to_be_clickable((By.XPATH, "//button[contains(., 'Accept') or contains(., 'agree')]"))
+            ).click()
+        except Exception:
+            pass
+
+    def inject_cookies(driver, cookies, base_url="https://timesofindia.indiatimes.com/"):
+        driver.get(base_url)
+        time.sleep(2)
+        for cookie in cookies:
+            try:
+                driver.add_cookie(cookie)
+            except Exception as e:
+                print(f" Failed to add cookie {cookie['name']}: {e}")
+
+    try:
+        inject_cookies(driver, cookies)
+        driver.get(url)
+        time.sleep(random.uniform(2.5, 4))
+        accept_cookies(driver)
+
+        soup = BeautifulSoup(driver.page_source, "lxml")
+
+        # Times of India uses different selectors
+        paragraphs = []
+        
+        # Try multiple selectors for TOI articles
+        article_body = soup.find('div', class_='_s30J clearfix') or soup.find('div', {'class': 'Normal'}) or soup.find('article')
+        if article_body:
+            for p in article_body.find_all('p'):
+                text = p.get_text(strip=True)
+                if text:
+                    paragraphs.append(text)
+        
+        # Fallback: get all paragraphs if specific container not found
+        if not paragraphs:
+            for p in soup.find_all('p'):
+                text = p.get_text(strip=True)
+                if text and len(text) > 50:  # Filter out short snippets
+                    paragraphs.append(text)
+
+        full_text = "\n".join(paragraphs)
+
+        driver.quit()
+        print(f"Success: {full_text[:100]}...")  # Print first 100 chars for debugging
+        input_tokens = count_tokens(url)
+        output_tokens = count_tokens(full_text)
+        add_tool_tokens(input_tokens, output_tokens)
+
+        if full_text.strip():
+            return TOIScrapeResult(
+                url=url,
+                title=title,
+                content=full_text,
+                success=True,
+                message="Article successfully scraped!"
+            )
+        else:
+            return TOIScrapeResult(
+                url=url,
+                title=title,
+                content="",
+                success=False,
+                message="No visible text found in the article."
+            )
+
+    except Exception as e:
+        driver.quit()
+        return TOIScrapeResult(
+            url=url,
+            title=title,
+            content="",
+            success=False,
+            message=f"Error occurred: {str(e)}"
+        )
+
+
+
 
 
 
@@ -1095,6 +1393,25 @@ async def gather_articles_for_summarization(
                             "url": ft_result.url,
                             "content": ft_result.content
                         })
+            elif site == "economictimes.indiatimes.com":
+                for article in articles:
+                    et_result = await scrape_et_article(ctx, url=article.url, title=article.title)
+                    if et_result.success:
+                        grouped_content[date_range_label][site].append({
+                            "title": et_result.title,
+                            "url": et_result.url,
+                            "content": et_result.content
+                        })
+            elif site == "timesofindia.indiatimes.com":
+                for article in articles:
+                    toi_result = await scrape_toi_article(ctx, url=article.url, title=article.title)
+                    if toi_result.success:
+                        grouped_content[date_range_label][site].append({
+                            "title": toi_result.title,
+                            "url": toi_result.url,
+                            "content": toi_result.content
+                        })
+            
 
         grouped_content = deep_convert(grouped_content)
 
@@ -1171,7 +1488,7 @@ def strip_urls(summary: str) -> str:
 
 
 @agent.tool
-def generate_stock_story(ctx: RunContext, summary: List[WeeklySummaryResult]) -> str:
+async def generate_stock_story(ctx: RunContext, summary: List[WeeklySummaryResult]) -> str:
     # Convert the list of SummaryGeneratorResult to a plain text input
     
     for item in summaries:
@@ -1219,14 +1536,12 @@ Optionally close with a comment on investor outlook, strategic positioning, or u
 
 '''
     )
-    agent_response = stockstoryagent.run_sync(summary_text)
+    agent_response = await stockstoryagent.run(summary_text)
     input_tokens = count_tokens(summary_text)
-    print("Generated Stock Story:")
-    print(agent_response.output)
     output_tokens = count_tokens(agent_response.output)
+    print(f'Generated Stock Story: {agent_response.output}')
     add_tool_tokens(input_tokens, output_tokens)
     print(f'tokens used for generate_stock_story: {input_tokens + output_tokens}')
-   
     return agent_response.output
 
 

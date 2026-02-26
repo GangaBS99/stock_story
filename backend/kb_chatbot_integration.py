@@ -7,22 +7,17 @@ def handle_knowledge_query(user_message: str, session_context: Optional[Dict] = 
     Process user query against knowledge base.
     Returns answer with sources if found, otherwise returns None.
     """
+    # Only check knowledge base if TCS is mentioned
+    if "tcs" not in user_message.lower():
+        return None
+    
     # Skip knowledge base for stock story generation requests
     skip_keywords = ["stock story", "create a", "generate", "summarize", "analyze"]
     if any(kw in user_message.lower() for kw in skip_keywords):
         return None
     
-    # Extract company name if mentioned
-    companies = kb.get_all_companies()
-    mentioned_company = None
-    
-    for company in companies:
-        if company.lower() in user_message.lower():
-            mentioned_company = company
-            break
-    
-    # Query the knowledge base
-    result = kb.answer_question(user_message, mentioned_company)
+    # Query the knowledge base for TCS
+    result = kb.answer_question(user_message, "TCS")
     
     if result["confidence"] > 0:
         return {
@@ -30,7 +25,7 @@ def handle_knowledge_query(user_message: str, session_context: Optional[Dict] = 
             "answer": result["answer"],
             "sources": result["sources"],
             "confidence": result["confidence"],
-            "company": mentioned_company
+            "company": "TCS"
         }
     
     return None
