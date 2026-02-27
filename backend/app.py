@@ -75,6 +75,11 @@ def generate_suggestions(bot_text: str) -> List[str]:
             "yes proceed"
         ]
 
+    if "complete stock story" in text:
+        return [
+            "Analyze another company"
+        ]
+
     return []
 
 # ─────────────────────────────────────────────────────────────
@@ -106,15 +111,25 @@ async def handle_agent_request(request: MessageRequest):
         # Token count (input)
         input_tokens = count_tokens(user_message)
 
+        # Shared state for tools to return data directly
+        deps = {"story": None}
+
         # Run agent safely (non-blocking)
         result = await asyncio.to_thread(
             agent.run_sync,
             user_message,
-            message_history=history
+            message_history=history,
+            deps=deps
         )
 
         session_histories[session_id] = result.all_messages()
-        output_text = result.output or ""
+        
+        # If a story was generated in a tool, use it directly (with an intro)
+        if deps.get("story"):
+            intro = "Here is the complete stock story based on our analysis:\n\n"
+            output_text = f"{intro}{deps['story']}"
+        else:
+            output_text = result.output or ""
 
         # Token count (output)
         output_tokens = count_tokens(output_text)

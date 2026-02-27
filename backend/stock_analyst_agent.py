@@ -5,7 +5,7 @@ from openai import AsyncOpenAI
 import os
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(override=True)
 
 async_openai_client = AsyncOpenAI(api_key=os.environ["OPENAI_API_KEY"])
 

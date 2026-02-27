@@ -11,6 +11,7 @@ from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter
 from dotenv import load_dotenv
 from tavily import AsyncTavilyClient
 import os
+import shutil
 from itertools import chain
 from pydantic_ai.providers.openai import OpenAIProvider
 import undetected_chromedriver as uc
@@ -33,7 +34,7 @@ encoding = encoding_for_model("gpt-4o")  # or your specific model name
 def count_tokens(text: str) -> int:
     return len(encoding.encode(text))
 
-load_dotenv()
+load_dotenv(override=True)
 nest_asyncio.apply()
 client2 = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
 
@@ -55,6 +56,7 @@ model = OpenAIModel(
 
 agent = Agent(
     model=model,
+    deps_type=dict,
 
 system_prompt = '''
 You are the Stock Story Generator – a smart, conversational financial agent.
@@ -100,14 +102,14 @@ Say: **“These weeks had significant movements. Would you like to analyze the r
 • Call `summarize_date_ranges_sequentially` with the full list of date ranges.  
 • This tool calls `gather_articles_for_summarization` **one-by-one** for each date range, enabling progressive streaming and storing summaries in order.
 
-7️⃣ If the user wants to add a week:
+8️⃣ If the user wants to add a week:
 📍 Next Step:
 “Okay, I’ll add this week to our analysis. Then I’ll look at news stories for all selected weeks, extract insights, and show you the summaries. Shall I continue?”
 • Call `build_date_ranges_from_weeks` to include the new week.
 • Then call `summarize_date_ranges_sequentially` with the updated list of date ranges.
 • This tool calls `gather_articles_for_summarization` **one-by-one** for each date range, enabling progressive streaming and storing summaries in order.
 
-8️⃣ After generating all summaries show ONLY this exact message (nothing else):  
+9️⃣ After generating all summaries show ONLY this exact message (nothing else):  
 "Now I can generate a complete story using these summaries. You can also remove any summary if it seems off. Ready for the full narrative?"
 
 🚫 DO NOT:
@@ -117,11 +119,14 @@ Say: **“These weeks had significant movements. Would you like to analyze the r
 - Show any other commentary
 
 
-9️⃣ If the user agrees:  
-Use `generate_stock_story` to generate a complete narrative. After calling the tool, display ONLY the exact output returned by the tool - nothing else. Do not add any commentary, introduction, or explanation. Just show the story text directly.
+🔟 If the user agrees:  
+• Call `generate_stock_story`.
+• **CRITICAL:** Your response to the user must be the **EXACT** text returned by the `generate_stock_story` tool. 
+• Do **NOT** add any introduction like "Here is your story..." or any conclusion.
+• Just output the story text directly as your entire response.
 
-💬 After Story Generation:
-Once the stock story is complete, you can answer follow-up stock-related questions from the user. For any stock analysis questions, provide professional insights based on your financial expertise.
+💬 After the Story is Displayed:
+Once you have provided the full stock story, you can take follow-up stock-related questions. For any stock analysis questions, provide professional insights based on your financial expertise.
 
 🚫 IMPORTANT:
 If the user says anything **other than stock related questions**, respond with:
@@ -289,7 +294,7 @@ class WeeklyChangeResult(BaseModel):
     weeks: list[dict]
 
 @agent.tool
-def find_weeks_with_significant_change(ctx: RunContext[WeeklyChangeResult], weekly_data: list[dict]) -> WeeklyChangeResult:
+def find_weeks_with_significant_change(ctx: RunContext, weekly_data: list[dict]) -> WeeklyChangeResult:
     """
     Given weekly stock data (list of dicts), find weeks with a significant price change (>2% increase or decrease).
     """
@@ -493,7 +498,9 @@ async def scrape_et_article(ctx: RunContext, url: str, title: str) -> ETScrapeRe
         ETScrapeResult: A model containing the scraped content or an error message
        
     """
-    cookie_file_path = r"E:\Python\stock_story_integration\economictimes.indiatimes.com_json_1770573419566.json"
+    # Dynamic path for cookie file
+    BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    cookie_file_path = os.path.join(BASE_DIR, "stock_story_integration", "economictimes.indiatimes.com_json_1770573419566.json")
     with open(cookie_file_path, "r", encoding="utf-8") as f:
         raw_cookies = json.load(f)
 
@@ -621,7 +628,9 @@ async def scrape_wsj_article(ctx: RunContext, url: str, title: str) -> WSJScrape
         WSJScrapeResult: A model containing the scraped content or an error message
        
     """
-    cookie_file_path = r"E:\Python\stock_story_integration\www.wsj.com_json_1748426594430.json"
+    # Dynamic path for cookie file
+    BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    cookie_file_path = os.path.join(BASE_DIR, "stock_story_integration", "www.wsj.com_json_1748426594430.json")
     with open(cookie_file_path, "r", encoding="utf-8") as f:
         raw_cookies = json.load(f)
 
@@ -647,7 +656,7 @@ async def scrape_wsj_article(ctx: RunContext, url: str, title: str) -> WSJScrape
     options.add_argument("--disable-dev-shm-usage")
    
 
-    driver = uc.Chrome(driver_executable_path=r"C:\chromedriver-win64\chromedriver.exe", options=options)
+    driver = uc.Chrome(version_main=145, options=options)
 
     def accept_cookies(driver, timeout=5):
         try:
@@ -745,7 +754,9 @@ async def scrape_ft_article(ctx: RunContext, url: str, title: str) -> FTScrapeRe
     Returns:
         FTScrapeResult: A model containing the scraped content or an error message.
     """
-    cookie_file_path = r"E:\Python\stock_story_integration\www.ft.com_json_1748426136782.json"
+    # Dynamic path for cookie file
+    BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    cookie_file_path = os.path.join(BASE_DIR, "stock_story_integration", "www.ft.com_json_1748426136782.json")
     with open(cookie_file_path, "r", encoding="utf-8") as f:
         raw_cookies = json.load(f)
 
@@ -771,7 +782,7 @@ async def scrape_ft_article(ctx: RunContext, url: str, title: str) -> FTScrapeRe
     options.add_argument("--disable-dev-shm-usage")
    
 
-    driver = uc.Chrome(driver_executable_path=r"C:\chromedriver-win64\chromedriver.exe", options=options)
+    driver = uc.Chrome(version_main=145, options=options)
 
     def accept_cookies(driver, timeout=5):
         try:
@@ -872,9 +883,9 @@ async def scrape_reuters_articles(ctx: RunContext, articles_input: List[ArticleI
         ReutersScrapeResult: A model containing the enriched articles with full content.
     """
     # ---------- CONFIG ----------
-    cookie_file_path = r"E:\Python\stock_story_integration\www.reuters.com_json_1748426665433.json"
+    BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    cookie_file_path = os.path.join(BASE_DIR, "stock_story_integration", "www.reuters.com_json_1748426665433.json")
     USER_AGENT = "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Mobile Safari/537.36"
-    driver_path = r"C:\chromedriver-win64\chromedriver.exe"
 
     # ---------- LOAD COOKIES ----------
     def load_cookies(filepath):
@@ -902,7 +913,7 @@ async def scrape_reuters_articles(ctx: RunContext, articles_input: List[ArticleI
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
    
-    driver = uc.Chrome(driver_executable_path=driver_path, options=options)
+    driver = uc.Chrome(version_main=145, options=options)
 
     def accept_cookies(driver, timeout=5):
         try:
@@ -1019,7 +1030,9 @@ async def scrape_toi_article(ctx: RunContext, url: str, title: str) -> TOIScrape
         TOIScrapeResult: A model containing the scraped content or an error message
        
     """
-    cookie_file_path = r"E:\Python\stock_story_integration\timesofindia.indiatimes.com_json_1770574475288.json"
+    # Dynamic path for cookie file
+    BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    cookie_file_path = os.path.join(BASE_DIR, "stock_story_integration", "timesofindia.indiatimes.com_json_1770574475288.json")
     with open(cookie_file_path, "r", encoding="utf-8") as f:
         raw_cookies = json.load(f)
 
@@ -1045,7 +1058,7 @@ async def scrape_toi_article(ctx: RunContext, url: str, title: str) -> TOIScrape
     options.add_argument("--disable-dev-shm-usage")
    
 
-    driver = uc.Chrome(driver_executable_path=r"C:\chromedriver-win64\chromedriver.exe", options=options)
+    driver = uc.Chrome(version_main=145, options=options)
 
     def accept_cookies(driver, timeout=5):
         try:
@@ -1542,6 +1555,11 @@ Optionally close with a comment on investor outlook, strategic positioning, or u
     print(f'Generated Stock Story: {agent_response.output}')
     add_tool_tokens(input_tokens, output_tokens)
     print(f'tokens used for generate_stock_story: {input_tokens + output_tokens}')
+    
+    # Store the result in deps to bypass agent commentary
+    if ctx.deps and isinstance(ctx.deps, dict):
+        ctx.deps["story"] = agent_response.output
+        
     return agent_response.output
 
 
