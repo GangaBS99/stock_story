@@ -1,0 +1,26 @@
+# Core
+langfuse>=3.0.0
+openai>=1.0.0
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+pydantic-ai>=0.0.20
+python-dotenv>=1.0.0
+
+# Control Plane API
+fastapi>=0.110.0
+uvicorn[standard]>=0.28.0
+httpx>=0.27.0
+
+# Dashboard
+streamlit>=1.32.0
+plotly>=5.20.0
+pandas>=2.0.0
+
+# LangChain (optional adapter)
+langchain>=0.2.0
+langchain-openai>=0.1.0
+langchain-community>=0.2.0
+
+# OpenTelemetry (for PydanticAI OTEL bridge)
+opentelemetry-sdk>=1.24.0
+opentelemetry-exporter-otlp-proto-http>=1.24.0
