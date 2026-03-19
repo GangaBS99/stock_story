@@ -49,15 +49,38 @@ def push_score(trace_id: str, name: str, value: float, comment: str | None = Non
         pass
 
 
+_LANGFUSE_MAX_PAGE_SIZE = 100
+
+
 def get_traces(limit: int = 50, **filters: Any) -> list[dict]:
-    """Fetch recent traces as plain dicts from the Langfuse API."""
+    """Fetch recent traces as plain dicts from the Langfuse API.
+
+    Paginates automatically when limit > 100 (the Langfuse API hard cap).
+    """
     client = get_client()
-    try:
-        page = client.api.trace.list(limit=limit, **filters)
-        items = page.data if hasattr(page, "data") else []
-        return [t.model_dump() if hasattr(t, "model_dump") else dict(t) for t in items]
-    except Exception:
-        return []
+    results: list[dict] = []
+    remaining = limit
+    page_num = 1
+
+    while remaining > 0:
+        page_size = min(remaining, _LANGFUSE_MAX_PAGE_SIZE)
+        try:
+            page = client.api.trace.list(limit=page_size, page=page_num, **filters)
+            items = page.data if hasattr(page, "data") else []
+            if not items:
+                break
+            results.extend(
+                t.model_dump() if hasattr(t, "model_dump") else dict(t) for t in items
+            )
+            remaining -= len(items)
+            # Stop if the API returned fewer items than requested (last page)
+            if len(items) < page_size:
+                break
+            page_num += 1
+        except Exception:
+            break
+
+    return results
 
 
 def get_trace(trace_id: str) -> dict | None:

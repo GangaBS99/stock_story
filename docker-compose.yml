@@ -3,24 +3,24 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    command: uvicorn control_plane.main:app --host 0.0.0.0 --port 8500 --reload
-    ports:
-      - "8500:8500"
+    command: uvicorn control_plane.main:app --host 0.0.0.0 --port 8500
+    expose:
+      - "8500"
     env_file: .env
-    volumes:
-      - .:/app
     restart: unless-stopped
 
-  dashboard:
+  frontend:
     build:
-      context: .
+      context: ./frontend
       dockerfile: Dockerfile
-    command: streamlit run dashboard/app.py --server.port 8501 --server.address 0.0.0.0
+      args:
+        # Langfuse iframe is served through the /lf-proxy/ nginx location
+        VITE_LANGFUSE_URL: /lf-proxy
+    environment:
+      # Passed to nginx at runtime to fill the /lf-proxy/ proxy_pass target
+      LANGFUSE_HOST: ${LANGFUSE_HOST:-https://langfuse.agenticorc.com}
     ports:
-      - "8501:8501"
-    env_file: .env
-    volumes:
-      - .:/app
+      - "80:80"
     depends_on:
       - control-plane
     restart: unless-stopped

@@ -389,14 +389,31 @@ def get_latency_breakdown() -> list[dict]:
 @router.get("/token-cost", summary="Token throughput and cost per task over time")
 def get_token_cost(points: int = Query(30, le=100)) -> list[dict]:
     traces = _langfuse_traces(limit=points)
-    result = []
 
+    # Build a run-metadata lookup for token fallback (keyed by trace_id)
+    runs = _get_runs()
+    run_token_map: dict[str, int] = {}
+    for r in runs:
+        total = (
+            int(r.metadata.get("total_tokens") or 0)
+            or int(r.metadata.get("input_tokens") or 0) + int(r.metadata.get("output_tokens") or 0)
+        )
+        if total > 0:
+            run_token_map[r.trace_id] = total
+
+    result = []
     for i, t in enumerate(reversed(traces)):
+        # Langfuse v3 trace list does not include per-trace usage totals;
+        # fall back to tokens stored in the control plane run metadata.
         usage = t.get("usage") or {}
         total_tokens = (
-            (usage.get("input") or 0)
-            + (usage.get("output") or 0)
+            int(usage.get("input") or 0) + int(usage.get("output") or 0)
+            or int(usage.get("total") or 0)
         )
+        if total_tokens == 0:
+            trace_id = _extract_trace_id(t) or ""
+            total_tokens = run_token_map.get(trace_id, 0)
+
         cost = t.get("total_cost") or t.get("totalCost") or 0.0
         ts = t.get("timestamp") or t.get("created_at") or ""
         if ts:

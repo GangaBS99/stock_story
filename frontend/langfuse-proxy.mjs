@@ -1,5 +1,16 @@
 import http from 'node:http'
-import { URL } from 'node:url'
+import { URL, fileURLToPath } from 'node:url'
+import { readFileSync } from 'node:fs'
+import { resolve, dirname } from 'node:path'
+
+const __dirname = dirname(fileURLToPath(import.meta.url))
+try {
+  const envText = readFileSync(resolve(__dirname, '.env'), 'utf-8')
+  for (const line of envText.split('\n')) {
+    const m = line.match(/^\s*([A-Z_][A-Z0-9_]*)\s*=\s*"?(.*?)"?\s*$/)
+    if (m && !process.env[m[1]]) process.env[m[1]] = m[2]
+  }
+} catch {}
 
 const LANGFUSE_URL = (process.env.LANGFUSE_URL || process.env.VITE_LANGFUSE_URL || 'http://localhost:3000').replace(/\/$/, '')
 const PROXY_PORT = Number(process.env.LANGFUSE_PROXY_PORT || 3001)
