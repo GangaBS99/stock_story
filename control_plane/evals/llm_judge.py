@@ -22,6 +22,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from control_plane.evals.base import AbstractEvaluator
+from control_plane.config import get_settings
 from sdk.schemas import Score
 
 # ── built-in prompt ───────────────────────────────────────────────────────────
@@ -140,6 +141,14 @@ class LLMJudge(AbstractEvaluator):
             dims_json=dims_json,
         )
 
+    def _resolve_openai_api_key(self) -> str:
+        """
+        Resolve API key from env first, then control-plane settings .env.
+        """
+        key = os.getenv("OPENAI_API_KEY", "") or get_settings().openai_api_key or ""
+        # Handle quoted .env values safely.
+        return key.strip().strip('"').strip("'")
+
     async def evaluate(
         self,
         trace_id: str,
@@ -152,7 +161,12 @@ class LLMJudge(AbstractEvaluator):
         try:
             import openai
 
-            client = openai.AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+            api_key = self._resolve_openai_api_key()
+            if not api_key:
+                raise RuntimeError(
+                    "OPENAI_API_KEY is missing. Set it in environment or stock_story/.env."
+                )
+            client = openai.AsyncOpenAI(api_key=api_key)
             resp = await client.chat.completions.create(
                 model=self._model,
                 messages=[

@@ -49,6 +49,10 @@ export default function Compliance({ paused }: Props) {
     label: d.agent,
     value: d.hallucination_rate,
   }))
+  const isSingleHallu = halluBars.length === 1
+  const singleHallu = isSingleHallu ? halluBars[0] : null
+  const halluPct = Math.max(0, Math.min(100, Number(singleHallu?.value ?? 0)))
+  const halluSweep = `${(halluPct * 3.6).toFixed(1)}deg`
 
   const auditData = [
     { name: 'SOX', target: 95, completeness: 94 },
@@ -68,13 +72,41 @@ export default function Compliance({ paused }: Props) {
       <div className="card">
         <div className="card-title">Hallucination Rate by Workflow</div>
         <div className="text-[10px] text-gray-500 mb-3">% responses containing ungrounded facts or numbers</div>
-        <HorizontalBarChart
-          data={halluBars}
-          color={THEME.red}
-          unit="%"
-          domain={[0, 8]}
-          referenceLine={{ x: 3, label: '3% threshold' }}
-        />
+        {isSingleHallu && singleHallu ? (
+          <div className="flex flex-col items-center">
+            <div
+              className="w-28 h-28 rounded-full grid place-items-center border border-border mb-3"
+              style={{ background: `conic-gradient(${THEME.red} ${halluSweep}, #1e2433 0deg)` }}
+            >
+              <div className="w-20 h-20 rounded-full bg-[#0b1020] grid place-items-center border border-border">
+                <div className={`text-lg font-semibold ${halluPct <= 3 ? 'text-green' : 'text-red'}`}>
+                  {halluPct.toFixed(1)}%
+                </div>
+              </div>
+            </div>
+            <div className="text-sm text-cyan font-semibold mb-3">{singleHallu.label}</div>
+            <div className="w-full grid grid-cols-2 gap-2 text-xs font-mono">
+              <div className="rounded border border-border px-2 py-1.5 bg-[#0f1420]">
+                <div className="text-gray-500">Threshold</div>
+                <div className="text-amber font-semibold">3.0%</div>
+              </div>
+              <div className="rounded border border-border px-2 py-1.5 bg-[#0f1420]">
+                <div className="text-gray-500">Status</div>
+                <div className={`font-semibold ${halluPct <= 3 ? 'text-green' : 'text-red'}`}>
+                  {halluPct <= 3 ? 'In Control' : 'Needs Attention'}
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <HorizontalBarChart
+            data={halluBars}
+            color={THEME.red}
+            unit="%"
+            domain={[0, 8]}
+            referenceLine={{ x: 3, label: '3% threshold' }}
+          />
+        )}
       </div>
 
       {/* Hallucination trend */}

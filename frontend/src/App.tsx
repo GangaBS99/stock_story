@@ -4,15 +4,19 @@ import Overview from './components/tabs/Overview'
 import AgenticLogic from './components/tabs/AgenticLogic'
 import Compliance from './components/tabs/Compliance'
 import OperationalPerf from './components/tabs/OperationalPerf'
+import PromptLibrary from './components/tabs/PromptLibrary'
+import LangfuseRaw from './components/tabs/LangfuseRaw'
 import { THEME } from './theme'
 
-type Tab = 'overview' | 'agentic' | 'compliance' | 'operational'
+type Tab = 'overview' | 'agentic' | 'compliance' | 'operational' | 'prompts' | 'langfuse'
 
 const TABS: { id: Tab; label: string; color: string }[] = [
   { id: 'overview', label: 'Overview', color: THEME.cyan },
   { id: 'agentic', label: 'Agentic Logic & Autonomy', color: THEME.p1 },
-  { id: 'compliance', label: 'Financial Accuracy & Compliance', color: THEME.p2 },
+  { id: 'compliance', label: ' Accuracy & Compliance', color: THEME.p2 },
   { id: 'operational', label: 'Operational Performance', color: THEME.p3 },
+  { id: 'prompts', label: 'Prompt Library', color: THEME.blue },
+  { id: 'langfuse', label: 'Deep Evaluation', color: THEME.teal },
 ]
 
 export default function App() {
@@ -64,6 +68,8 @@ export default function App() {
           {activeTab === 'agentic' && <AgenticLogic paused={paused} />}
           {activeTab === 'compliance' && <Compliance paused={paused} />}
           {activeTab === 'operational' && <OperationalPerf paused={paused} />}
+          {activeTab === 'prompts' && <PromptLibrary paused={paused} />}
+          {activeTab === 'langfuse' && <LangfuseRaw paused={paused} />}
         </main>
 
         <footer className="border-t border-border px-6 py-3 text-[11px] text-sub flex justify-between gap-4">

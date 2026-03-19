@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "langfuse-proxy": "node langfuse-proxy.mjs",
     "build": "tsc && vite build",
     "preview": "vite preview"
   },

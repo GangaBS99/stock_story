@@ -23,12 +23,30 @@ def get_client():
 def push_score(trace_id: str, name: str, value: float, comment: str | None = None) -> None:
     """Push a numeric score onto a Langfuse trace."""
     client = get_client()
-    client.score(
-        trace_id=trace_id,
-        name=name,
-        value=value,
-        comment=comment,
-    )
+    # Best-effort push to Langfuse; ignore SDK/version mismatches so the control plane never 500s.
+    try:
+        # Different Langfuse Python SDK versions expose scores slightly differently.
+        # Prefer the typed API client if available.
+        if hasattr(getattr(client, "api", None), "scores"):
+            scores_client = client.api.scores
+            if hasattr(scores_client, "create"):
+                scores_client.create(
+                    trace_id=trace_id,
+                    name=name,
+                    value=value,
+                    comment=comment,
+                )
+        elif hasattr(client, "score"):
+            # Older SDKs exposed a top-level score() helper.
+            client.score(
+                trace_id=trace_id,
+                name=name,
+                value=value,
+                comment=comment,
+            )
+    except Exception:
+        # Don't let Langfuse SDK issues break the control plane; internal scores are still stored.
+        pass
 
 
 def get_traces(limit: int = 50, **filters: Any) -> list[dict]:
@@ -40,6 +58,18 @@ def get_traces(limit: int = 50, **filters: Any) -> list[dict]:
         return [t.model_dump() if hasattr(t, "model_dump") else dict(t) for t in items]
     except Exception:
         return []
+
+
+def get_trace(trace_id: str) -> dict | None:
+    """Fetch a single trace by id."""
+    client = get_client()
+    try:
+        trace = client.api.trace.get(trace_id=trace_id)
+        if trace is None:
+            return None
+        return trace.model_dump() if hasattr(trace, "model_dump") else dict(trace)
+    except Exception:
+        return None
 
 
 def get_scores(trace_id: str) -> list[dict]:

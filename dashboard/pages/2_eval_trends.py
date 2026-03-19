@@ -83,6 +83,7 @@ if not rows:
 
 df = pd.DataFrame(rows)
 df["created_at"] = pd.to_datetime(df["created_at"])
+df = df.sort_values("created_at")
 
 score_names = df["score_name"].unique().tolist()
 selected_scores = st.multiselect(
@@ -90,16 +91,104 @@ selected_scores = st.multiselect(
 )
 df = df[df["score_name"].isin(selected_scores)]
 
-# Line chart: score over time per dimension
+# Trend controls
 st.subheader("Score over time")
-fig = px.line(
-    df,
-    x="created_at",
-    y="value",
-    color="score_name",
-    markers=True,
-    labels={"value": "Score (0-1)", "created_at": "Time"},
-)
+mode_col, bucket_col = st.columns([2, 2])
+with mode_col:
+    trend_mode = st.radio(
+        "Trend mode",
+        ["Aggregated", "Raw runs"],
+        horizontal=True,
+        help="Aggregated smooths noisy one-off scores and mixed agents.",
+    )
+with bucket_col:
+    bucket = st.selectbox(
+        "Time bucket",
+        ["Auto", "5 min", "15 min", "1 hour", "1 day"],
+        index=0,
+    )
+
+freq_map = {
+    "5 min": "5min",
+    "15 min": "15min",
+    "1 hour": "1h",
+    "1 day": "1d",
+}
+
+if trend_mode == "Aggregated":
+    # Auto-bucket selection based on visible timespan.
+    if bucket == "Auto":
+        span_seconds = (df["created_at"].max() - df["created_at"].min()).total_seconds()
+        if span_seconds <= 3600:
+            freq = "5min"
+        elif span_seconds <= 6 * 3600:
+            freq = "15min"
+        elif span_seconds <= 3 * 24 * 3600:
+            freq = "1h"
+        else:
+            freq = "1d"
+    else:
+        freq = freq_map[bucket]
+
+    agg_df = df.copy()
+    agg_df["time_bucket"] = agg_df["created_at"].dt.floor(freq)
+    group_cols = ["time_bucket", "score_name"]
+    if selected_agent == "All":
+        group_cols.append("agent_name")
+
+    agg_df = (
+        agg_df.groupby(group_cols, as_index=False)
+        .agg(
+            value=("value", "mean"),
+            samples=("value", "count"),
+        )
+    )
+
+    if selected_agent == "All":
+        agg_df["series"] = agg_df["score_name"] + " | " + agg_df["agent_name"]
+    else:
+        agg_df["series"] = agg_df["score_name"]
+
+    fig = px.line(
+        agg_df,
+        x="time_bucket",
+        y="value",
+        color="series",
+        markers=True,
+        labels={"value": "Score (0-1)", "time_bucket": "Time", "series": "Series"},
+        hover_data={
+            "agent_name": True,
+            "score_name": True,
+            "samples": True,
+            "series": False,
+            "time_bucket": True,
+            "value": ":.3f",
+        },
+    )
+else:
+    raw_df = df.copy()
+    if selected_agent == "All":
+        raw_df["series"] = raw_df["score_name"] + " | " + raw_df["agent_name"]
+    else:
+        raw_df["series"] = raw_df["score_name"]
+
+    fig = px.line(
+        raw_df,
+        x="created_at",
+        y="value",
+        color="series",
+        markers=True,
+        labels={"value": "Score (0-1)", "created_at": "Time", "series": "Series"},
+        hover_data={
+            "agent_name": True,
+            "score_name": True,
+            "trace_id": True,
+            "series": False,
+            "created_at": True,
+            "value": ":.3f",
+        },
+    )
+
 fig.update_yaxes(range=[0, 1])
 fig.update_layout(margin=dict(t=20, b=20))
 st.plotly_chart(fig, use_container_width=True)

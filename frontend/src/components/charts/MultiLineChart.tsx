@@ -27,6 +27,14 @@ interface Props {
   height?: number
 }
 
+function formatNumeric(value: unknown): string {
+  const n = Number(value)
+  if (!Number.isFinite(n)) return '-'
+  if (Math.abs(n) >= 100) return n.toFixed(0)
+  if (Math.abs(n) >= 10) return n.toFixed(1)
+  return n.toFixed(2)
+}
+
 export default function MultiLineChart({
   data,
   lines,
@@ -36,6 +44,8 @@ export default function MultiLineChart({
   unit = '',
   height = 200,
 }: Props) {
+  const showDots = data.length <= 12
+
   return (
     <ResponsiveContainer width="100%" height={height}>
       <LineChart data={data} margin={{ top: 4, right: 16, bottom: 0, left: 0 }}>
@@ -44,12 +54,12 @@ export default function MultiLineChart({
         <YAxis
           domain={yDomain}
           tick={chartTickStyle}
-          tickFormatter={(v) => `${v}${unit}`}
+          tickFormatter={(v) => `${formatNumeric(v)}${unit}`}
         />
         <Tooltip
           contentStyle={chartTooltipStyle}
           labelStyle={{ color: THEME.sub }}
-          formatter={(v: number) => [`${v}${unit}`, '']}
+          formatter={(v: number, name: string) => [`${formatNumeric(v)}${unit}`, name]}
         />
         <Legend
           wrapperStyle={{ fontSize: 10, fontFamily: 'SF Mono, Fira Code, monospace', color: THEME.sub }}
@@ -69,9 +79,10 @@ export default function MultiLineChart({
             dataKey={l.key}
             stroke={l.color}
             strokeWidth={2}
-            dot={false}
+            dot={showDots}
             name={l.label ?? l.key}
             activeDot={{ r: 4 }}
+            connectNulls
           />
         ))}
       </LineChart>

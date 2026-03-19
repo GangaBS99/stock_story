@@ -129,6 +129,49 @@ class PydanticAIAdapter(BaseConnector):
         except ImportError as exc:
             print(f"[PydanticAIAdapter] WARNING: pydantic-ai not importable: {exc}")
 
+    @staticmethod
+    def _extract_result_messages(result: Any) -> list[Any]:
+        """Best-effort extraction of run messages across pydantic-ai versions."""
+        candidates: list[list[Any]] = []
+        for accessor in ("all_messages", "new_messages"):
+            attr = getattr(result, accessor, None)
+            if callable(attr):
+                try:
+                    msgs = attr()
+                    if isinstance(msgs, (list, tuple)):
+                        candidates.append(list(msgs))
+                except Exception:
+                    pass
+        for attr_name in ("_all_messages", "messages", "message_history", "_messages"):
+            msgs = getattr(result, attr_name, None)
+            if isinstance(msgs, (list, tuple)):
+                candidates.append(list(msgs))
+        return max(candidates, key=len) if candidates else []
+
+    @classmethod
+    def _estimate_internal_steps_from_result(cls, result: Any) -> int:
+        """
+        Estimate internal turns from model/tool message stream.
+        Prefer model responses as the closest proxy for decision turns.
+        """
+        messages = cls._extract_result_messages(result)
+        if not messages:
+            return 0
+
+        model_responses = 0
+        assistant_like = 0
+        for msg in messages:
+            role = str(getattr(msg, "role", "") or "").lower()
+            name = msg.__class__.__name__.lower()
+            if "modelresponse" in name:
+                model_responses += 1
+            if role in ("assistant", "model", "tool"):
+                assistant_like += 1
+            elif any(k in name for k in ("modelrequest", "modelresponse", "toolcall", "toolreturn")):
+                assistant_like += 1
+
+        return model_responses if model_responses > 0 else assistant_like
+
     async def run(self, prompt: str, **kwargs: Any) -> Any:
         """Run the agent asynchronously and report to control plane."""
         start = time.perf_counter()
@@ -137,9 +180,48 @@ class PydanticAIAdapter(BaseConnector):
         error = None
         trace_id = str(uuid.uuid4())
 
+        # Optional observability metadata (e.g. decision turns) passed by caller.
+        # We also derive some metadata here (like turns from message_history).
+        metadata = kwargs.pop("metadata", {}) or {}
+
+        # If the caller provided message_history, approximate base turns
+        # as the number of user/assistant messages in the history plus this prompt.
+        message_history = kwargs.get("message_history")
+        try:
+            if isinstance(message_history, (list, tuple)):
+                turns = sum(
+                    1
+                    for msg in message_history
+                    if getattr(msg, "role", "") in ("user", "assistant")
+                ) + 1
+                # Only set if not already provided by the caller.
+                metadata.setdefault("turns", turns)
+                metadata.setdefault("base_turns", turns)
+        except Exception:
+            # Never let observability bookkeeping break the agent run.
+            pass
+
         try:
             result = await self._agent.run(prompt, **kwargs)
             output = result.output if hasattr(result, "output") else str(result)
+            # Include internal agent reasoning/tool activity in turn count when available.
+            try:
+                deps = kwargs.get("deps")
+                deps_steps = int(getattr(deps, "reasoning_steps", 0) or 0) if deps is not None else 0
+                tool_steps = 0
+                if deps is not None:
+                    tool_calls = getattr(deps, "tool_calls", None)
+                    if isinstance(tool_calls, list):
+                        tool_steps = len(tool_calls)
+                result_steps = self._estimate_internal_steps_from_result(result)
+                internal_steps = max(deps_steps, tool_steps, result_steps)
+
+                base_turns = int(metadata.get("turns", 1) or 1)
+                metadata["internal_reasoning_steps"] = internal_steps
+                metadata["turns"] = base_turns + internal_steps
+                metadata.setdefault("decision_turns", metadata["turns"])
+            except Exception:
+                pass
             # PydanticAI >= 0.0.20 exposes _trace_id on the result
             if hasattr(result, "_trace_id") and result._trace_id:
                 trace_id = str(result._trace_id)
@@ -158,6 +240,7 @@ class PydanticAIAdapter(BaseConnector):
                 status=status,
                 latency_ms=latency_ms,
                 error=error,
+                metadata=metadata,
             )
             await self._report_run_async(report)
 
@@ -169,9 +252,42 @@ class PydanticAIAdapter(BaseConnector):
         error = None
         trace_id = str(uuid.uuid4())
 
+        # Optional observability metadata for sync runs as well.
+        metadata = kwargs.pop("metadata", {}) or {}
+
+        message_history = kwargs.get("message_history")
+        try:
+            if isinstance(message_history, (list, tuple)):
+                turns = sum(
+                    1
+                    for msg in message_history
+                    if getattr(msg, "role", "") in ("user", "assistant")
+                ) + 1
+                metadata.setdefault("turns", turns)
+                metadata.setdefault("base_turns", turns)
+        except Exception:
+            pass
+
         try:
             result = self._agent.run_sync(prompt, **kwargs)
             output = result.output if hasattr(result, "output") else str(result)
+            try:
+                deps = kwargs.get("deps")
+                deps_steps = int(getattr(deps, "reasoning_steps", 0) or 0) if deps is not None else 0
+                tool_steps = 0
+                if deps is not None:
+                    tool_calls = getattr(deps, "tool_calls", None)
+                    if isinstance(tool_calls, list):
+                        tool_steps = len(tool_calls)
+                result_steps = self._estimate_internal_steps_from_result(result)
+                internal_steps = max(deps_steps, tool_steps, result_steps)
+
+                base_turns = int(metadata.get("turns", 1) or 1)
+                metadata["internal_reasoning_steps"] = internal_steps
+                metadata["turns"] = base_turns + internal_steps
+                metadata.setdefault("decision_turns", metadata["turns"])
+            except Exception:
+                pass
             if hasattr(result, "_trace_id") and result._trace_id:
                 trace_id = str(result._trace_id)
             return result
@@ -189,5 +305,6 @@ class PydanticAIAdapter(BaseConnector):
                 status=status,
                 latency_ms=latency_ms,
                 error=error,
+                metadata=metadata,
             )
             self._report_run(report)

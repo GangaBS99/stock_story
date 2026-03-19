@@ -103,9 +103,9 @@ export function fallbackScoresTrend(points = 30) {
 
 export function fallbackAgentsSummary() {
   return [
-    { name: 'portfolio_rebalancer', framework: 'langgraph', total_runs: 76, tsr: 95, avg_latency_ms: 621, p95_latency_ms: 1330 },
-    { name: 'trade_reconcile', framework: 'langchain', total_runs: 63, tsr: 98, avg_latency_ms: 544, p95_latency_ms: 1182 },
-    { name: 'tenk_analyst', framework: 'openai-agents', total_runs: 34, tsr: 81, avg_latency_ms: 1493, p95_latency_ms: 2621 },
-    { name: 'client_reporter', framework: 'pydantic-ai', total_runs: 52, tsr: 96, avg_latency_ms: 701, p95_latency_ms: 1452 },
+    { name: 'portfolio_rebalancer', framework: 'langgraph', total_runs: 76, tsr: 95, avg_latency_ms: 621, p95_latency_ms: 1330, avg_cost_per_task: 0.0342 },
+    { name: 'trade_reconcile', framework: 'langchain', total_runs: 63, tsr: 98, avg_latency_ms: 544, p95_latency_ms: 1182, avg_cost_per_task: 0.0278 },
+    { name: 'tenk_analyst', framework: 'openai-agents', total_runs: 34, tsr: 81, avg_latency_ms: 1493, p95_latency_ms: 2621, avg_cost_per_task: 0.0526 },
+    { name: 'client_reporter', framework: 'pydantic-ai', total_runs: 52, tsr: 96, avg_latency_ms: 701, p95_latency_ms: 1452, avg_cost_per_task: 0.0395 },
   ]
 }

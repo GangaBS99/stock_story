@@ -7,9 +7,9 @@
     box-sizing: border-box;
   }
   body {
-    background-color: #07080f;
-    color: #e2e8f0;
-    font-family: 'SF Mono', 'Fira Code', monospace;
+    background: radial-gradient(1200px 600px at 20% -10%, #1f2937 0%, #0b1020 45%, #070b16 100%);
+    color: #e5e7eb;
+    font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
     margin: 0;
     padding: 0;
   }
@@ -18,10 +18,10 @@
     height: 6px;
   }
   ::-webkit-scrollbar-track {
-    background: #0d1117;
+    background: #0f172a;
   }
   ::-webkit-scrollbar-thumb {
-    background: #3a4257;
+    background: #334155;
     border-radius: 3px;
   }
 }
@@ -29,11 +29,12 @@
 @layer components {
   .card {
     @apply bg-surface border border-border rounded-lg p-4;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+    box-shadow: 0 6px 18px rgba(2, 6, 23, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(4px);
   }
   .card-title {
     @apply text-[13px] font-mono font-semibold text-text mb-1 pl-2;
-    border-left: 3px solid #8b5cf6;
+    border-left: 3px solid #22d3ee;
     line-height: 1.2;
   }
   .metric-value {

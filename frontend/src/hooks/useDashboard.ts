@@ -103,3 +103,21 @@ export function useAgentsSummary(paused = false) {
     refetchInterval: usePolling(paused),
   })
 }
+
+export function useAgentTraces(agentName: string | null, paused = false) {
+  return useQuery({
+    queryKey: ['agent-traces', agentName],
+    queryFn: () => api.agentTraces(agentName as string, 30),
+    enabled: Boolean(agentName),
+    refetchInterval: usePolling(paused),
+  })
+}
+
+export function useAgentTraceDetail(traceId: string | null, paused = false) {
+  return useQuery({
+    queryKey: ['agent-trace-detail', traceId],
+    queryFn: () => api.agentTraceDetail(traceId as string),
+    enabled: Boolean(traceId),
+    refetchInterval: usePolling(paused),
+  })
+}
